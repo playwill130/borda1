@@ -3,54 +3,58 @@ import threading
 import xmlrpc.client
 import time
 
-nodes = {}
-files = {}
+# Dicionários para armazenar informações dos nós e arquivos
+node_registry = {}
+file_registry = {}
 
-def register_node(node_host, node_port, node_files):
-    nodes[(node_host, node_port)] = node_files
+# Função para registrar um nó com seus arquivos
+def register_node(host, port, node_files):
+    node_registry[(host, port)] = node_files
     return True
 
-def register_file(node_host, node_port, filename, checksum):
-    if filename not in files:
-        files[filename] = []
-    files[filename].append((node_host, node_port, checksum))
+# Função para adicionar um arquivo ao registro
+def register_file(host, port, filename, checksum):
+    if filename not in file_registry:
+        file_registry[filename] = []
+    file_registry[filename].append((host, port, checksum))
     return True
 
-def find_file(filename):
-    if filename in files:
-        return files[filename]
-    return []
+# Função para buscar informações sobre um arquivo
+def locate_file(filename):
+    return file_registry.get(filename, [])
 
-def periodic_file_check():
+# Função que verifica periodicamente os arquivos nos nós
+def periodic_check():
     while True:
-        print("Checking files on registered nodes:")
-        for (node_host, node_port), node_files in nodes.items():
-            print(f"Node at {node_host}:{node_port} has files:")
+        print("Verificando arquivos nos nós:")
+        for (host, port), node_files in node_registry.items():
+            print(f"Nó em {host}:{port} possui os arquivos:")
             for filename, checksum in node_files.items():
                 print(f"- {filename}")
         print("")
+        time.sleep(5)  # Intervalo de verificação de 5 segundos
 
-        time.sleep(5)  # Verifica a cada 5 segundos
-
+# Função para encontrar um nó que possui um arquivo específico
 def find_node_with_file(filename):
-    for (node_host, node_port), node_files in nodes.items():
+    for (host, port), node_files in node_registry.items():
         if filename in node_files:
-            return (node_host, node_port)
+            return (host, port)
     return None
 
-def start_edge_node(edge_node_host, edge_node_port):
-    server = SimpleXMLRPCServer((edge_node_host, edge_node_port), allow_none=True)
+# Função para iniciar o nó de borda
+def start_edge_node(host, port):
+    server = SimpleXMLRPCServer((host, port), allow_none=True)
     server.register_function(register_node, "register_node")
     server.register_function(register_file, "register_file")
-    server.register_function(find_file, "find_file")
+    server.register_function(locate_file, "locate_file")
     server.register_function(find_node_with_file, "find_node_with_file")
     
     threading.Thread(target=server.serve_forever).start()
-    threading.Thread(target=periodic_file_check).start()  # Thread para verificação periódica
-    print(f"Edge node running on {edge_node_host}:{edge_node_port}")
+    threading.Thread(target=periodic_check).start()  # Thread para verificação periódica
+    print(f"Nó de borda executando em {host}:{port}")
 
 if __name__ == "__main__":
     edge_node_host = 'localhost'
     edge_node_port = 8000
     start_edge_node(edge_node_host, edge_node_port)
-    input("Press Enter to exit...\n")
+    input("Pressione Enter para finalizar...\n")
